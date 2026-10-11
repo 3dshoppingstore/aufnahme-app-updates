@@ -1,0 +1,29 @@
+# Liegt eine neue APK im Fach, macht GitHub daraus die Fassung ("Release"),
+# die die Aufnahme-App über ihren Knopf "App aktualisieren" findet.
+name: Fassung veroeffentlichen
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ '*.apk' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  veroeffentlichen:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fassung anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=$(ls AUFNAHME-APP-stand*.apk | sort -V | tail -1)
+          n=$(echo "$apk" | grep -oP 'stand\K[0-9]+')
+          tag="app-stand-$n"
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" "$apk" --title "Aufnahme-App – Stand $n" --notes "Neue Fassung der Aufnahme-App. In der App: Startseite → „App aktualisieren“." --latest
+          # nur die letzten 5 Fassungen behalten
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | sort -V | head -n -5 | while read t; do gh release delete "$t" --yes --cleanup-tag || true; done
